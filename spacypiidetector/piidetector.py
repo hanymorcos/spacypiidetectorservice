@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import spacy
 from spacy.matcher import Matcher
+import re
 
 class PiiDetector:
     #https://stackoverflow.com/questions/4087468/ssn-regex-for-123-45-6789-or-xxx-xx-xxxx
@@ -23,20 +24,30 @@ class PiiDetector:
  
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
-        self.matcher = Matcher(self.nlp.vocab)
+
+    def getpatterns(self,text):
+        entities = []
+        nstr = text
         for p in self.patterns:
-           for k, v in p.items() : 
-              self.matcher.add(k,None,[v])
+            for k, v in p:
+                regex = re.compile(v)
+                offset = 0
+                for m in regex.finditer(nstr):
+                    start, end = m.span()
+                    start = start - offset
+                    end = end - offset
+                    nstr = nstr[:start] + nstr[end:]
+                    offset = end-start
+                    entities.append({k:m.match})
+        return entities  
 
     def getEntites(self, text):
-        doc =self.nlp(str(text, 'utf-8'))
+        doc =self.nlp(text)
         entities = []
-        matches = self.matcher(doc)
-        for match_id, start, end in matches:
-            string_id = self.nlp.vocab.strings[match_id]  # Get string representation
-            span = doc[start:end]  # The matched span
-            entities.append( {"match_id" : match_id, "string_id": string_id, "start": start, "end": end, "text": span.text })
+        for ent in doc.ents:
+            entities.append( {"text" : ent.text, "start_char":  ent.start_char, "end_char": ent.end_char, "label": ent.label_})
 
+        print(entities)
         return entities
 
 
