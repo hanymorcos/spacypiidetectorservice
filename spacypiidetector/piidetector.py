@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import spacy
-from spacy.matcher import Matcher
+from spacy import tokens
 import re
 
 class PiiDetector:
@@ -16,12 +16,25 @@ class PiiDetector:
     #http://www.richardsramblings.com/regex/credit-card-numbers/
     CREDIT_CARD_PATTERN = "^(?:3[47]\d{2}([\s\-]?)\d{6}([\s\-]?)\d|(?:(?:4\d|5[1-5]|65)\d{2}|6011)([\s\-]?)\d{4}([\s\-]?)\d{4}([\s\-]?))\d{4}$"
 
-    patterns = [{"SSN": {"TEXT"   : {"REGEX": SSN_PATTERN}}},
-                {"PHONENUMBER": {"TEXT" : {"REGEX": PHONE_NUMBER_PATTERN}}},
-                {"EMAILPATTERN": {"TEXT" : {"REGEX": EMAIL_PATTERN}}},
-                {"CREDITCARD": {"TEXT" : {"REGEX": CREDIT_CARD_PATTERN}}}
-              ]
+    patterns = [{"CREDITCARD":CREDIT_CARD_PATTERN}, { "SSN": SSN_PATTERN}, {"PHONE" : PHONE_NUMBER_PATTERN}, { "EMAIL": EMAIL_PATTERN} ]
  
+    class Spacy_Entity:
+        def __init__(self,entity):
+            self.entity = entity
+
+        def toPacket(self):
+            return {"text" : self.entity.text, "start":  self.entity.start_char, "end": self.entity.end_char, "label": self.entity.label_}
+    
+    class RE_Entity:
+        def __init__(self,entity, type):
+            self.entity = entity
+            self.type = type
+
+        def toPacket(self):
+            start, end = self.entity.span()
+            return {"text" : self.entity.match, "start":  start, "end": end, "label": self.entity.type}
+
+
     def __init__(self):
         self.nlp = spacy.load("en_core_web_sm")
 
@@ -38,21 +51,23 @@ class PiiDetector:
                     end = end - offset
                     nstr = nstr[:start] + nstr[end:]
                     offset = end-start
-                    entities.append({k:m.match})
+                    entities.append(self.RE_Entity(m, k).toPacket())
         return entities  
 
     def getEntites(self, text):
         doc =self.nlp(text)
         entities = []
         for ent in doc.ents:
-            entities.append( {"text" : ent.text, "start_char":  ent.start_char, "end_char": ent.end_char, "label": ent.label_})
-
-        print(entities)
+            if (ent.label_ == "PERSON"):
+                entities.append(self.Spacy_Entity(ent).toPacket())
         return entities
 
 
 def main():
- PiiDetector().getEntites(" 555-55-5555 ")
+ print( PiiDetector().getEntites("WASHINGTON -- In 444-22-3333 the wake of a string of abuses by New York police officers in the 1990s, " +
+ "Loretta E. Lynch, the top federal (233) 423-2323 prosecutor in Brooklyn, spoke forcefully about the pain" + 
+ "of a broken trust that 4444-4444-4444-4444 African-Americans test.tst@test.com  4555-4444-4444-4444felt and said the responsibility for repairing " +
+ "generations of miscommunication and mistrust fell to law enforcement."))
 
 if __name__ == '__main__':
         main()
